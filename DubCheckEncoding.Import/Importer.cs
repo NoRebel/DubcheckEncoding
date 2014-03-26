@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Security.Cryptography;
 using System.Text;
+using DupCheckEncoding.Import.Configuration;
 
 namespace DubCheckEncoding.Import
 {
@@ -16,10 +19,14 @@ namespace DubCheckEncoding.Import
 		private const string encryptionKey2 = "3A0X";
 
 
-	    private int[] indexesToSkip;
+	    //private int[] indexesToSkip;
+		private Dictionary<int, string> ColumnsToSkip { get; set; } 
+		private Dictionary<int, string> SourceHeaders { get; set; }
 
 	    private readonly string _importFileName;
 		private readonly string _outputFileName;
+
+	    private List<TransformationRule> _transformationRules;
 
 	    public Importer(string importFileName, string outputFileName)
 	    {
@@ -54,13 +61,28 @@ namespace DubCheckEncoding.Import
 
 
 		    string[] allRows = File.ReadAllLines(_importFileName);
-		    var headers = GetHeaders(allRows);
-		    indexesToSkip = GetIndexColumnToSkip(headers).ToArray();
-		    var columnCount = headers.Count();
+
+			Configuration config =
+ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+			var configSectionGroup = config.GetSectionGroup("transformationRules") as TransformationRuleGroup;
+			if (configSectionGroup != null)
+			{
+				_transformationRules = new List<TransformationRule>();
+				if (configSectionGroup.InitialsTransformation != null)
+					_transformationRules.Add(configSectionGroup.InitialsTransformation);
+				if (configSectionGroup.BirthDateTransformation != null)
+					_transformationRules.Add(configSectionGroup.BirthDateTransformation);
+			}
+
+		    var transformedRows = TransformRows(allRows, _transformationRules);
+
+		    SourceHeaders = GetSourceHeaders(allRows);
+		    ColumnsToSkip = GetColumnsToSkip(SourceHeaders);
+		    var columnCount = SourceHeaders.Count();
 			if (columnCount == 0)
 				return ImportResult.BadFormat;
-		    
-			var rows = GetRows(allRows);
+
+		    var rows = GetRows(allRows);
 			if (rows.Count(c => c.Count() != columnCount) > 0)
 				return ImportResult.BadFormat;
 
@@ -69,7 +91,7 @@ namespace DubCheckEncoding.Import
 			try
 			{
 				var writer = new StreamWriter(_outputFileName);
-				writer.WriteLine(string.Join(columnSeparator.ToString(), headers));
+				writer.WriteLine(string.Join(columnSeparator.ToString(), SourceHeaders.Select(c => c.Value)));
 				encryptedRows.ForEach(writer.WriteLine);
 				writer.Flush();
 				writer.Close();
@@ -82,26 +104,103 @@ namespace DubCheckEncoding.Import
 			return ImportResult.Success;
 		}
 
-		private IEnumerable<int> GetIndexColumnToSkip(string[] headers)
+		private string[] TransformRows(string[] allRows, List<TransformationRule> transformationRules)
 		{
-			var columnsToSkip = GetColumnsToSkip();
-			foreach (string columnToSkip in columnsToSkip)
+			var headers = GetSourceHeaders(allRows);
+			var transformedHeaders = GetTransformedHeaders(headers, transformationRules).Select(c => c.Value).ToArray();
+			for (int rowIndex = 1; rowIndex < allRows.Count(); rowIndex++)
 			{
-				int result = -1;
-				for (int i = 0; i < headers.Count(); i++)
+				var splittedRow = allRows[rowIndex].Split(columnSeparator);
+				for (int columnIndex = 0; columnIndex < splittedRow.Count(); columnIndex++)
 				{
-					if (headers[i].Trim().Replace("\"", "").ToLower() == columnToSkip.ToLower())
+					var header = headers[columnIndex];
+					var transformationRule = transformationRules.SingleOrDefault(c => c.SourceField.ToLower() == header.ToLower());
+					if (transformationRule != null)
 					{
-						result = i;
-						break;
+						if (String.IsNullOrEmpty(transformationRule.Separator))
+						{
+							var length = splittedRow[columnIndex].Length;
+							for (int i=0; i< transformationRule.Transformations.Count; i++)
+							{
+								if (transformationRule.Transformations[i].Length == length)
+								{
+									var format = transformationRule.Transformations[i].FieldOrder;
+									if (transformationRule.TransformationType == "Char")
+									{
+										string[] array = new string[length];
+										for (int j = 0; j < splittedRow[columnIndex].Length; j++)
+										{
+											//array[j] = 
+										}
+									}
+								}
+							}
+							
+
+						}
+						else
+						{
+						}
 					}
 				}
-				yield return result;
 			}
-			
+			return transformedHeaders;
 		}
 
-		private List<string> GetColumnsToSkip()
+
+	    private Dictionary<int, string> GetTransformedHeaders(Dictionary<int, string> sourceHeaders,
+		    List<TransformationRule> transformationRules)
+	    {
+		    return GetTransformedHeaders(sourceHeaders.Select(c => c.Value).ToArray(), transformationRules);
+	    }
+
+
+	    private Dictionary<int, string> GetTransformedHeaders(string[] sourceHeaders, 
+			List<TransformationRule> transformationRules)
+		{
+			var result = new Dictionary<int, string>();
+			int index = 0;
+			foreach (var sourceHeader in sourceHeaders)
+			{
+				var transformationRule = transformationRules.SingleOrDefault(c => c.SourceField.ToLower() == sourceHeader.ToLower());
+				if (transformationRule != null)
+				{
+					for (int i = 0; i < transformationRule.TargetFields.Count; i++)
+					{
+						result.Add(index, transformationRule.TargetFields[i].Value);
+						index++;
+					}
+
+				}
+				else
+				{
+					result.Add(index, sourceHeader.ToLower());
+					index++;
+				}
+				
+			}
+		    return result;
+		}
+
+		private Dictionary<int, string> GetColumnsToSkip(Dictionary<int, string> headers)
+		{
+			var columnsToSkip = GetNonEncryptedFields();
+			var result = new Dictionary<int, string>();
+			foreach (string columnToSkip in columnsToSkip)
+			{
+				var columnName = columnToSkip.ToLower();
+				for (int i = 0; i < headers.Count(); i++)
+				{					
+					if (headers[i].Trim().Replace("\"", "").ToLower() == columnName)
+					{
+						result.Add(i, columnName);						
+					}
+				}				
+			}
+			return result;
+		}
+
+		private List<string> GetNonEncryptedFields()
 		{
 			var strColumnsToSkip = ConfigurationManager.AppSettings["NonEncryptedFields"];
 			return strColumnsToSkip.Split(',').Select(c => c.Trim()).ToList();
@@ -117,7 +216,7 @@ namespace DubCheckEncoding.Import
 				for(int cellIndex = 0; cellIndex < row.Count; cellIndex++)
 				{
 					var newString = row[cellIndex].ToLower();
-					if (!indexesToSkip.Any(c => c == cellIndex))
+					if (ColumnsToSkip.All(c => c.Key != cellIndex))
 					{
 						var finalString = EncryptCell(newString);
 						newRow.Add("\"" + finalString + "\"");
@@ -160,12 +259,19 @@ namespace DubCheckEncoding.Import
 			return sBuilder.ToString();
 		}
 
-	    private string[] GetHeaders(string[] fileContent)
+	    private Dictionary<int, string> GetSourceHeaders(string[] fileContent)
 	    {
-		    return fileContent[0].Split(columnSeparator).Select(c => c.ToLower()).ToArray();
+		    var result = new Dictionary<int, string>();
+		    var headerNames = fileContent[0].Split(columnSeparator).Select(c => c.ToLower()).ToArray();
+		    for (int i = 0; i < headerNames.Count(); i++)
+		    {
+				result.Add(i, headerNames[i]);
+		    }
+
+		    return result;
 	    }
 
-		private List<List<string>> GetRows(string[] fileContent)
+	    private List<List<string>> GetRows(string[] fileContent)
 		{
 			var result = new List<List<string>>();
 			fileContent = fileContent.Where(c => c.Trim().Length > 0).ToArray();
