@@ -111,6 +111,8 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 			for (int rowIndex = 1; rowIndex < allRows.Count(); rowIndex++)
 			{
 				var splittedRow = allRows[rowIndex].Split(columnSeparator);
+				var finalRow = String.Empty;
+				var stringList = new List<string>();
 				for (int columnIndex = 0; columnIndex < splittedRow.Count(); columnIndex++)
 				{
 					var header = headers[columnIndex];
@@ -120,7 +122,7 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 						if (String.IsNullOrEmpty(transformationRule.Separator))
 						{
 							var length = splittedRow[columnIndex].Length;
-							for (int i=0; i< transformationRule.Transformations.Count; i++)
+							for (int i = 0; i < transformationRule.Transformations.Count; i++)
 							{
 								if (transformationRule.Transformations[i].Length == length)
 								{
@@ -130,17 +132,23 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 										string[] array = new string[length];
 										for (int j = 0; j < splittedRow[columnIndex].Length; j++)
 										{
-											//array[j] = 
+											array[j] = splittedRow[columnIndex][j].ToString();
 										}
+										var resultCharSubset = String.Format(format, array).ToCharArray();
+										stringList.AddRange(resultCharSubset.Select(c => c.ToString()));
 									}
 								}
 							}
-							
+
 
 						}
 						else
 						{
 						}
+					}
+					else
+					{
+						stringList.Add(splittedRow[columnIndex]);
 					}
 				}
 			}
