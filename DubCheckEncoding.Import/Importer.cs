@@ -76,13 +76,13 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 
 		    var transformedRows = TransformRows(allRows, _transformationRules);
 
-		    SourceHeaders = GetSourceHeaders(allRows);
+		    SourceHeaders = GetSourceHeaders(transformedRows);
 		    ColumnsToSkip = GetColumnsToSkip(SourceHeaders);
 		    var columnCount = SourceHeaders.Count();
 			if (columnCount == 0)
 				return ImportResult.BadFormat;
 
-		    var rows = GetRows(allRows);
+		    var rows = GetRows(transformedRows);
 			if (rows.Count(c => c.Count() != columnCount) > 0)
 				return ImportResult.BadFormat;
 
@@ -106,44 +106,33 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 
 		private string[] TransformRows(string[] allRows, List<TransformationRule> transformationRules)
 		{
+			var result = new List<string>();
+			
 			var headers = GetSourceHeaders(allRows);
 			var transformedHeaders = GetTransformedHeaders(headers, transformationRules).Select(c => c.Value).ToArray();
+			result.Add(string.Join(columnSeparator.ToString(), transformedHeaders));
 			for (int rowIndex = 1; rowIndex < allRows.Count(); rowIndex++)
 			{
 				var splittedRow = allRows[rowIndex].Split(columnSeparator);
-				var finalRow = String.Empty;
-				var stringList = new List<string>();
+				var stringList = new List<string>();			
 				for (int columnIndex = 0; columnIndex < splittedRow.Count(); columnIndex++)
 				{
+					
 					var header = headers[columnIndex];
 					var transformationRule = transformationRules.SingleOrDefault(c => c.SourceField.ToLower() == header.ToLower());
 					if (transformationRule != null)
 					{
-						if (String.IsNullOrEmpty(transformationRule.Separator))
+						if (transformationRule.TransformationType.ToLower() == "Initials".ToLower())
 						{
-							var length = splittedRow[columnIndex].Length;
-							for (int i = 0; i < transformationRule.Transformations.Count; i++)
-							{
-								if (transformationRule.Transformations[i].Length == length)
-								{
-									var format = transformationRule.Transformations[i].FieldOrder;
-									if (transformationRule.TransformationType == "Char")
-									{
-										string[] array = new string[length];
-										for (int j = 0; j < splittedRow[columnIndex].Length; j++)
-										{
-											array[j] = splittedRow[columnIndex][j].ToString();
-										}
-										var resultCharSubset = String.Format(format, array).ToCharArray();
-										stringList.AddRange(resultCharSubset.Select(c => c.ToString()));
-									}
-								}
-							}
-
-
+							stringList.AddRange(ConvertStringToInitialsArray(splittedRow[columnIndex]));	
 						}
-						else
+						else if (transformationRule.TransformationType.ToLower() == "Date".ToLower())
 						{
+							if (transformationRule.Separator != '\x0')
+							{
+								var resultArray = splittedRow[columnIndex].Split(transformationRule.Separator);
+								stringList.AddRange(resultArray);
+							}
 						}
 					}
 					else
@@ -151,8 +140,35 @@ ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 						stringList.Add(splittedRow[columnIndex]);
 					}
 				}
+				result.Add(string.Join(columnSeparator.ToString(), stringList));
 			}
-			return transformedHeaders;
+			
+			return result.ToArray();
+		}
+
+		private IEnumerable<string> ConvertStringToInitialsArray(string strInitials)
+		{
+			var initials = strInitials.ToCharArray().Select(c => c.ToString()).ToArray();
+			var result = new List<string>();
+			switch (initials.Count())
+			{
+				case 1:
+					result.Add(initials[0]);
+					result.Add(string.Empty);
+					result.Add(string.Empty);
+					break;
+				case 2:
+					result.Add(initials[0]);
+					result.Add(string.Empty);
+					result.Add(initials[1]);
+					break;
+				case 3:
+					result.Add(initials[0]);
+					result.Add(initials[1]);
+					result.Add(initials[2]);
+					break;
+			}
+			return result;
 		}
 
 

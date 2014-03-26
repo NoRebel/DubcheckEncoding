@@ -43,8 +43,6 @@
   <ItemGroup>
     <Compile Include="Configuration\TargetFieldElement.cs" />
     <Compile Include="Configuration\TargetFieldElementCollection.cs" />
-    <Compile Include="Configuration\TransformationElement.cs" />
-    <Compile Include="Configuration\TransformationElementCollection.cs" />
     <Compile Include="Configuration\TransformationRuleGroup.cs" />
     <Compile Include="Configuration\TransformationRule.cs" />
     <Compile Include="Importer.cs" />

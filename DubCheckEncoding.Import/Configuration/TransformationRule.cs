@@ -33,7 +33,7 @@ namespace DupCheckEncoding.Import.Configuration
 
 			s_separator = new ConfigurationProperty(
 				"separator",
-				typeof(string),
+				typeof(char),
 				null,
 				ConfigurationPropertyOptions.None
 			);
@@ -45,20 +45,12 @@ namespace DupCheckEncoding.Import.Configuration
 				ConfigurationPropertyOptions.None
 			);
 
-			s_propTransformations = new ConfigurationProperty(
-				"transformations",
-				typeof(TransformationElementCollection),
-				null,
-				ConfigurationPropertyOptions.None
-			);
-
 			s_properties = new ConfigurationPropertyCollection();
 
 			s_properties.Add(s_sourceField);
 			s_properties.Add(s_transformationType);
 			s_properties.Add(s_separator);
-			s_properties.Add(s_propTargetFields);
-			s_properties.Add(s_propTransformations);
+			s_properties.Add(s_propTargetFields);			
 		}
 		#endregion
 
@@ -66,8 +58,7 @@ namespace DupCheckEncoding.Import.Configuration
 		private static ConfigurationProperty s_sourceField;
 		private static ConfigurationProperty s_transformationType;
 		private static ConfigurationProperty s_separator;
-		private static ConfigurationProperty s_propTargetFields;
-		private static ConfigurationProperty s_propTransformations;
+		private static ConfigurationProperty s_propTargetFields;		
 
 		private static ConfigurationPropertyCollection s_properties;
 		#endregion
@@ -96,9 +87,9 @@ namespace DupCheckEncoding.Import.Configuration
         /// Gets the Separator setting.
         /// </summary>
         [ConfigurationProperty("separator")]
-        public string Separator
+        public char Separator
         {
-			get { return (string)base[s_separator]; }
+			get { return (char)base[s_separator]; }
         }
 
 		/// <summary>
@@ -108,15 +99,6 @@ namespace DupCheckEncoding.Import.Configuration
 		public TargetFieldElementCollection TargetFields
 		{
 			get { return (TargetFieldElementCollection)base[s_propTargetFields]; }
-		}
-
-		/// <summary>
-		/// Gets the Separator setting.
-		/// </summary>
-		[ConfigurationProperty("transformations")]
-		public TransformationElementCollection Transformations
-		{
-			get { return (TransformationElementCollection)base[s_propTransformations]; }
 		}
 
 		
